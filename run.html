@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strat backtester (browser)</title>
+<style>
+:root{--bg:#edf0ee;--panel:#fbfcfb;--ink:#17231f;--mute:#5d6b66;--line:#cfd8d3;--ac:#0b5d54;--aci:#fff;--warn:#a4372b;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1412;--panel:#141d1a;--ink:#e3eee9;--mute:#8fa39b;--line:#26352f;--ac:#3fc2ae;--aci:#06211c;--warn:#f08a7c;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;padding:clamp(12px,1.2vw,28px);background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+.w{width:100%;max-width:2400px;margin:0 auto}h1{font:700 24px Georgia,serif;margin:4px 0}
+.s{color:var(--mute);margin:0 0 12px}.warn{border-left:3px solid var(--warn);padding:4px 10px;background:var(--panel);font-size:13px;margin-bottom:12px}
+.p{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px}
+h2{font-size:15px;margin:0 0 10px}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+label{font-size:12px;font-weight:600;display:block;margin-bottom:2px}
+input,select,textarea{width:100%;font:14px inherit;font-family:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px}
+textarea{font:12px ui-monospace,monospace;min-height:70px}
+button{font:600 14px inherit;font-family:inherit;border:1px solid var(--ac);background:var(--ac);color:var(--aci);border-radius:6px;padding:9px 14px}
+button.o{background:transparent;color:var(--ac)}.r{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.t{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}
+th,td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--line)}th:first-child,td:first-child{text-align:left}
+tr.pf td{font-weight:700}canvas{width:100%;height:220px;display:block}#msg{font-size:13px;color:var(--mute);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>The Strat backtester</h1>
+<p class="s">Runs entirely in the browser. No Bun, Node or terminal needed.</p>
+<p class="warn">Port of the README rules, not the repo's own code. Research only; not validated for live trading.</p>
+
+<div class="p">
+<h2>1. Data</h2>
+<input type="file" id="f" accept=".csv,.txt" multiple>
+<p class="s" style="margin:6px 0">CSV columns: date,open,high,low,close (date as 2024-01-02 or Unix seconds). One file per pair, named like EURUSD.csv.</p>
+<textarea id="paste" placeholder="Or paste CSV text here, then tap Add pasted"></textarea>
+<div class="r"><button class="o" id="addp">Add pasted</button><button class="o" id="samp">Use synthetic sample</button><button class="o" id="clr">Clear</button></div>
+<div id="msg">No data loaded.</div>
+</div>
+
+<div class="p">
+<h2>2. Rules</h2>
+<div class="g">
+<div><label>HTF filter</label><select id="htf"><option>continuity</option><option>reversal</option><option>all</option></select></div>
+<div><label>Target</label><select id="tgt"><option>structural</option><option>2r</option></select></div>
+<div><label>Entry</label><select id="ent"><option>intrabar</option><option>close</option></select></div>
+<div><label>Setups</label><input id="set" value="2-1,3-1,1-2,2-2,3-2"></div>
+<div><label>Swing lookback</label><input id="lb" type="number" value="20"></div>
+<div><label>Max hold (bars, 0=off)</label><input id="mh" type="number" value="0"></div>
+<div><label>Start date</label><input id="d0" type="date" value="2014-01-01"></div>
+<div><label>End date</label><input id="d1" type="date" value="2026-10-29"></div>
+</div></div>
+
+<div class="p">
+<h2>3. Costs and risk</h2>
+<div class="g">
+<div><label>Spread (bp)</label><input id="sp" type="number" step="0.1" value="1"></div>
+<div><label>Commission/side (bp)</label><input id="cm" type="number" step="0.1" value="0.5"></div>
+<div><label>Slippage/side (bp)</label><input id="sl" type="number" step="0.1" value="0.5"></div>
+<div><label>Swap (bp/day)</label><input id="sw" type="number" step="0.1" value="0.2"></div>
+<div><label>Single-pair risk %</label><input id="r1" type="number" step="0.05" value="1"></div>
+<div><label>Portfolio risk %/trade</label><input id="rp" type="number" step="0.05" value="0.25"></div>
+<div><label>Max open risk %</label><input id="mo" type="number" step="0.25" value="2"></div>
+<div><label>Max positions</label><input id="mp" type="number" value="8"></div>
+</div>
+<div class="r"><button id="run">Run backtest</button></div>
+</div>
+
+<div class="p"><h2>Results</h2><div class="t" id="res">Run a backtest to see results.</div></div>
+<div class="p"><h2>Portfolio equity</h2><canvas id="cv"></canvas></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id), DAY=864e5;
+let DATA={}; // pair -> bars
+
+// ---------- data ----------
+function parseCSV(text){
+  const out=[];
+  for(const ln of text.split(/\r?\n/)){
+    const c=ln.split(/[,;\t]/).map(s=>s.trim().replace(/"/g,""));
+    if(c.length<5) continue;
+    let t=/^\d+(\.\d+)?$/.test(c[0])?+c[0]:Date.parse(c[0]+(/^\d{4}-\d\d-\d\d$/.test(c[0])?"T00:00:00Z":""));
+    if(t<1e11&&/^\d+/.test(c[0])&&!/-/.test(c[0])) t*=1000;
+    const [o,h,l,cl]=c.slice(1,5).map(Number);
+    if(!isFinite(t)||[o,h,l,cl].some(x=>!isFinite(x))) continue;
+    out.push({t,o,h,l,c:cl});
+  }
+  return out.sort((a,b)=>a.t-b.t);
+}
+function status(){const k=Object.keys(DATA);$("msg").textContent=k.length?`${k.length} pair(s): ${k.map(p=>p+" ("+DATA[p].length+")").join(", ")}`:"No data loaded.";}
+$("f").onchange=async e=>{for(const f of e.target.files){const b=parseCSV(await f.text());if(b.length>30)DATA[f.name.replace(/\.\w+$/,"").toUpperCase()]=b;}status();};
+$("addp").onclick=()=>{const b=parseCSV($("paste").value);if(b.length>30){DATA["PASTED"+Object.keys(DATA).length]=b;$("paste").value="";}status();};
+$("clr").onclick=()=>{DATA={};status();};
+$("samp").onclick=()=>{ // synthetic random walks: for testing the UI only
+  let s=12345;const rnd=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;
+  const gauss=()=>Math.sqrt(-2*Math.log(rnd()+1e-12))*Math.cos(6.283185*rnd());
+  for(const [p,p0] of [["SAMPLE_A",1.1],["SAMPLE_B",1.3],["SAMPLE_C",110]]){
+    const bars=[];let px=p0,t=Date.UTC(2008,0,1);
+    while(t<Date.UTC(2026,9,30)){const d=new Date(t).getUTCDay();
+      if(d>0&&d<6){const o=px,c=o*(1+0.0055*gauss()),hi=Math.max(o,c)*(1+0.003*rnd()),lo=Math.min(o,c)*(1-0.003*rnd());bars.push({t,o,h:hi,l:lo,c});px=c;}
+      t+=DAY;}
+    DATA[p]=bars;}
+  status();$("msg").textContent+=" (synthetic: results are meaningless)";
+};
+
+// ---------- strat ----------
+function prep(b){
+  const n=b.length,ty=new Array(n).fill(0);
+  for(let i=1;i<n;i++){const p=b[i-1],x=b[i];
+    ty[i]=(x.h<=p.h&&x.l>=p.l)?1:(x.h>p.h&&x.l<p.l)?3:x.h>p.h?2:-2;}
+  const grp=kf=>{const g=[],ix=[];let last=null;for(const x of b){const k=kf(x.t);
+    if(k!==last){g.push({o:x.o,c:x.c});last=k}else g[g.length-1].c=x.c;ix.push(g.length-1)}return{g,ix}};
+  const wk=grp(t=>Math.floor((t/DAY+3)/7)),mo=grp(t=>{const d=new Date(t);return d.getUTCFullYear()*12+d.getUTCMonth()});
+  const col=(G,i)=>{const k=G.ix[i]-1;return k<0?0:G.g[k].c>G.g[k].o?1:-1};
+  return{ty,w:i=>col(wk,i),m:i=>col(mo,i)};
+}
+const lab=t=>t===1?"1":t===3?"3":"2";
+function backtest(b,P){
+  const {ty,w,m}=prep(b),tr=[],n=b.length,allowed=new Set(P.setups);
+  let i=Math.max(2,P.lb);
+  while(i<n-1){
+    const name=lab(ty[i-1])+"-"+lab(ty[i]);let cands=[];
+    if(allowed.has(name)){
+      if(ty[i]===1)cands=[{d:1,tr:b[i].h,st:b[i].l},{d:-1,tr:b[i].l,st:b[i].h}];
+      else if(ty[i]===2)cands=[{d:1,tr:b[i].h,st:b[i].l}];
+      else if(ty[i]===-2)cands=[{d:-1,tr:b[i].l,st:b[i].h}];
+    }
+    cands=cands.filter(c=>{const W=w(i),M=m(i);
+      return P.htf==="all"||(P.htf==="continuity"?(W===c.d&&M===c.d):(W===-c.d&&M===-c.d));});
+    const j=i+1,x=b[j];let pick=null;
+    for(const c of cands){
+      let fill=null;
+      if(P.ent==="intrabar"){
+        if(c.d===1&&x.h>=c.tr)fill=Math.max(c.tr,x.o);
+        if(c.d===-1&&x.l<=c.tr)fill=Math.min(c.tr,x.o);
+      }else{
+        if(c.d===1&&x.c>c.tr)fill=x.c;
+        if(c.d===-1&&x.c<c.tr)fill=x.c;
+      }
+      if(fill!==null&&(!pick||Math.abs(x.o-c.tr)<Math.abs(x.o-pick.tr)))pick={...c,fill};
+    }
+    if(!pick||(pick.d===1?pick.fill<=pick.st:pick.fill>=pick.st)){i++;continue;}
+    const{d,st,fill}=pick,R=Math.abs(fill-st);
+    let tg;
+    if(P.tgt==="2r")tg=fill+d*2*R;
+    else{let sw=d===1?-Infinity:Infinity;
+      for(let k=i-P.lb+1;k<=i;k++)sw=d===1?Math.max(sw,b[k].h):Math.min(sw,b[k].l);
+      tg=d*(sw-fill)>=R?sw:fill+d*2*R;}
+    let k=P.ent==="close"?j+1:j,ex=null;
+    for(;k<n;k++){const y=b[k],first=k===j;
+      if(d===1){
+        if(y.l<=st){ex=first?st:Math.min(st,y.o);break}
+        if(y.h>=tg){ex=first?tg:Math.max(tg,y.o);break}
+      }else{
+        if(y.h>=st){ex=first?st:Math.max(st,y.o);break}
+        if(y.l<=tg){ex=first?tg:Math.min(tg,y.o);break}
+      }
+      if(P.mh&&k-j>=P.mh){ex=y.c;break}
+    }
+    if(ex===null){k=n-1;ex=b[k].c}
+    const days=(b[k].t-x.t)/DAY,bp=P.sp+2*(P.cm+P.sl)+P.sw*days;
+    const gross=d*(ex-fill)/R,net=gross-fill*bp/1e4/R;
+    tr.push({t0:x.t,t1:b[k].t,net,gross});
+    i=Math.max(k,i+1);
+  }
+  return tr;
+}
+
+// ---------- portfolio + metrics ----------
+function simulate(trades,risk,maxPos,maxOpen,tStart){
+  trades=[...trades].sort((a,b)=>a.t0-b.t0);
+  let eq=1,open=[];const curve=[{t:tStart,e:1}],taken=[];
+  const closeTo=t=>{open.sort((a,b)=>a.t1-b.t1);
+    while(open.length&&open[0].t1<=t){const o=open.shift();eq+=o.amt*o.net;curve.push({t:o.t1,e:eq});}};
+  for(const x of trades){
+    closeTo(x.t0);
+    if(open.length<maxPos&&(open.length+1)*risk<=maxOpen+1e-9){open.push({...x,amt:risk*eq});taken.push(x);}
+  }
+  closeTo(Infinity);
+  return{curve,taken};
+}
+function metrics(curve,taken){
+  const n=taken.length;if(!n)return null;
+  const wins=taken.filter(x=>x.net>0),sw=wins.reduce((a,x)=>a+x.net,0),sl=-taken.filter(x=>x.net<=0).reduce((a,x)=>a+x.net,0);
+  let pk=1,dd=0;for(const p of curve){pk=Math.max(pk,p.e);dd=Math.min(dd,p.e/pk-1);}
+  const yrs=Math.max((curve[curve.length-1].t-curve[0].t)/DAY/365.25,1/365),end=curve[curve.length-1].e;
+  const mm=new Map();for(const p of curve){const d=new Date(p.t);mm.set(d.getUTCFullYear()*12+d.getUTCMonth(),p.e);}
+  const ks=[...mm.keys()].sort((a,b)=>a-b);let prev=1;const rets=[];
+  for(const k of ks){rets.push(mm.get(k)/prev-1);prev=mm.get(k);}
+  const mean=rets.reduce((a,x)=>a+x,0)/rets.length,sd=Math.sqrt(rets.reduce((a,x)=>a+(x-mean)**2,0)/Math.max(1,rets.length-1));
+  return{n,win:wins.length/n,avg:taken.reduce((a,x)=>a+x.net,0)/n,pf:sl?sw/sl:Infinity,cagr:end>0?end**(1/yrs)-1:-1,dd,sh:sd?mean/sd*Math.sqrt(12):0};
+}
+
+// ---------- run ----------
+function readP(){
+  const v=id=>+$(id).value;
+  return{htf:$("htf").value,tgt:$("tgt").value,ent:$("ent").value,lb:Math.max(2,v("lb")|0),mh:v("mh")|0,
+    setups:$("set").value.split(",").map(s=>s.trim()),sp:v("sp"),cm:v("cm"),sl:v("sl"),sw:v("sw")};
+}
+const pct=x=>(x*100).toFixed(1)+"%",f2=x=>isFinite(x)?x.toFixed(2):"inf";
+$("run").onclick=()=>{
+  const pairs=Object.keys(DATA);if(!pairs.length){$("res").textContent="Load data first.";return;}
+  const P=readP(),d0=Date.parse($("d0").value)||0,d1=(Date.parse($("d1").value)||Infinity)+DAY-1;
+  const all=[];let rows="";
+  for(const p of pairs){
+    const b=DATA[p].filter(x=>x.t>=d0&&x.t<=d1);
+    if(b.length<P.lb+5){rows+=`<tr><td>${p}</td><td colspan=7>too few bars in range</td></tr>`;continue;}
+    const tr=backtest(b,P);tr.forEach(x=>x.pair=p);all.push(...tr);
+    const s=simulate(tr,$("r1").value/100,1,1,b[0].t),M=metrics(s.curve,s.taken);
+    rows+=M?`<tr><td>${p}</td><td>${M.n}</td><td>${pct(M.win)}</td><td>${f2(M.avg)}</td><td>${f2(M.pf)}</td><td>${pct(M.cagr)}</td><td>${pct(M.dd)}</td><td>${f2(M.sh)}</td></tr>`:`<tr><td>${p}</td><td colspan=7>no trades</td></tr>`;
+  }
+  const t0=Math.min(...all.map(x=>x.t0),Infinity);
+  const ps=simulate(all,$("rp").value/100,+$("mp").value,$("mo").value/100,t0),PM=metrics(ps.curve,ps.taken);
+  if(PM)rows+=`<tr class="pf"><td>Portfolio</td><td>${PM.n}</td><td>${pct(PM.win)}</td><td>${f2(PM.avg)}</td><td>${f2(PM.pf)}</td><td>${pct(PM.cagr)}</td><td>${pct(PM.dd)}</td><td>${f2(PM.sh)}</td></tr>`;
+  $("res").innerHTML=`<table><tr><th>Pair</th><th>Trades</th><th>Win</th><th>Avg net R</th><th>PF</th><th>CAGR</th><th>MaxDD</th><th>Sharpe</th></tr>${rows}</table>
+  <p class="s" style="font-size:12px;margin:8px 0 0">Equity updates when trades close (no daily mark-to-market). Sharpe is from monthly returns.</p>`;
+  draw(ps.curve);
+};
+function draw(cv){
+  const c=$("cv"),r=devicePixelRatio||1;c.width=c.clientWidth*r;c.height=c.clientHeight*r;
+  const x=c.getContext("2d");x.scale(r,r);const W=c.clientWidth,H=c.clientHeight,cs=getComputedStyle(document.body);
+  x.clearRect(0,0,W,H);if(cv.length<2)return;
+  const t0=cv[0].t,t1=cv[cv.length-1].t,es=cv.map(p=>p.e),lo=Math.min(...es),hi=Math.max(...es);
+  const X=t=>6+(t-t0)/(t1-t0||1)*(W-12),Y=e=>H-14-(e-lo)/(hi-lo||1)*(H-28);
+  x.strokeStyle=cs.getPropertyValue("--line");x.beginPath();x.moveTo(0,Y(1));x.lineTo(W,Y(1));x.stroke();
+  x.strokeStyle=cs.getPropertyValue("--ac");x.lineWidth=1.8;x.beginPath();
+  cv.forEach((p,i)=>i?x.lineTo(X(p.t),Y(p.e)):x.moveTo(X(p.t),Y(p.e)));x.stroke();
+  x.fillStyle=cs.getPropertyValue("--mute");x.font="11px system-ui";
+  x.fillText(`${lo.toFixed(2)}x – ${hi.toFixed(2)}x`,8,12);
+}
+status();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# Downloads fresh Dukascopy D1 data with the repo's own fetch-broker script.
+# Run it from the GitHub Actions tab ("Run workflow"), or let the schedule do it.
+# It uses --update, so only new bars are requested and existing history is kept.
+name: Fetch Dukascopy data
+
+on:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Redownload all history from scratch (slow)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "30 21 * * 1-5"   # weekdays, 21:30 UTC; adjust to your preferred run time
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      # dukascopy-node can fall back to a headless browser if the feed challenges the request
+      - run: bunx playwright-core install --with-deps chromium
+        continue-on-error: true
+      - name: Fetch data
+        run: |
+          if [ "${{ inputs.full }}" = "true" ] || [ ! -d data/broker ]; then
+            bun run fetch-broker --force
+          else
+            bun run fetch-broker --update
+          fi

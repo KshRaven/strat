@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strat backtester</title>
+<style>
+:root{--bg:#edf0ee;--panel:#fbfcfb;--ink:#17231f;--mute:#5d6b66;--line:#cfd8d3;--ac:#0b5d54;--aci:#fff;--warn:#a4372b;--lime:#d9e883;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1412;--panel:#141d1a;--ink:#e3eee9;--mute:#8fa39b;--line:#26352f;--ac:#3fc2ae;--aci:#06211c;--warn:#f08a7c;--lime:#9eae50;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,sans-serif}
+.top{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:clamp(14px,1.3vw,30px) clamp(18px,2.4vw,48px);background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:14px}.mark{width:34px;height:34px;display:grid;place-items:center;background:var(--ac);color:var(--aci);font:700 17px Georgia,serif;border-radius:4px}
+h1{font:700 22px Georgia,serif;margin:0}.subtitle{color:var(--mute);font-size:12px;margin:2px 0 0}.badge{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ac);background:color-mix(in srgb,var(--ac) 10%,var(--panel));padding:7px 10px;border-radius:4px}.badge:before{content:"";width:7px;height:7px;background:currentColor;border-radius:50%}.badge.sim{color:#8b6b10;background:color-mix(in srgb,var(--lime) 28%,var(--panel))}
+.dashboard{width:100%;max-width:2800px;margin:0 auto;padding:clamp(14px,1.6vw,34px);display:grid;grid-template-columns:minmax(320px,400px) minmax(0,1fr);gap:clamp(18px,2vw,36px);align-items:start}
+.setup{position:sticky;top:14px;max-height:calc(100vh - 28px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:0 16px 14px;scrollbar-color:var(--line) transparent}
+.setup-head{padding:15px 0 11px;border-bottom:1px solid var(--line)}h2{font:700 15px Georgia,serif;margin:0}.setup-head p,.section-copy{margin:3px 0 0;font-size:11px;color:var(--mute)}
+.group{padding:13px 0;border-bottom:1px solid var(--line)}.group:last-of-type{border-bottom:0}.group-title{display:flex;align-items:center;gap:8px;margin-bottom:9px}.step{font:700 10px ui-monospace,monospace;color:var(--ac);background:color-mix(in srgb,var(--ac) 10%,var(--panel));padding:3px 5px;border-radius:3px}
+label{display:block;font-size:11px;font-weight:650;margin-bottom:3px}.field{min-width:0}input,select{width:100%;min-width:0;font:13px inherit;font-family:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:7px 8px}input:focus,select:focus,button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.tri{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.tri input{padding:6px 5px;font-size:12px}.tri input::placeholder{color:var(--mute)}
+.grid-two{display:grid;grid-template-columns:1fr 1fr;gap:9px}.button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+button{font:650 12px inherit;font-family:inherit;cursor:pointer;border:1px solid var(--ac);background:var(--ac);color:var(--aci);border-radius:4px;padding:8px 11px}button:hover{filter:brightness(1.08)}button:disabled{opacity:.55;cursor:wait}button.secondary{background:transparent;color:var(--ac)}
+.small-status{font-size:11px;color:var(--mute);margin:7px 0 0;overflow-wrap:anywhere}.small-status.error{color:var(--warn)}.csv-fields[hidden],.sample-group[hidden]{display:none}
+.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.param-grid .tri{margin-top:3px}.range-hint{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 0 4px;color:var(--mute);font-size:9px;text-align:center}
+.setup-actions{position:sticky;bottom:-14px;background:var(--panel);padding:12px 0 0;border-top:1px solid var(--line)}.scenario-count{font-size:11px;color:var(--mute);margin-bottom:8px}.run{width:100%;font-size:13px;padding:10px}
+.progress-wrap{display:grid;gap:5px;margin-top:9px}.progress-wrap[hidden]{display:none}progress{width:100%;height:10px;accent-color:var(--ac)}#timer{font-size:10px;color:var(--mute);margin:0}
+.results{min-width:0}.results-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:4px 0 14px;border-bottom:1px solid var(--line)}.results-head h2{font-size:20px}.results-head p{margin:3px 0 0;color:var(--mute);font-size:12px}#err{color:var(--warn);font-size:12px;margin:10px 0}#err:empty{display:none}
+.save-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.save-controls input{width:160px}.save-controls span{font-size:10px;color:var(--mute)}
+.empty{min-height:320px;display:grid;place-items:center;text-align:center;border:1px dashed var(--line);margin-top:14px;padding:24px;color:var(--mute)}.empty strong{display:block;font:700 18px Georgia,serif;color:var(--ink);margin-bottom:5px}.empty[hidden]{display:none}
+.result-card{padding:16px 0;border-bottom:1px solid var(--line)}.result-card h3{font:700 14px Georgia,serif;margin:0 0 9px}.chart-wrap{height:220px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 4px 0;margin-bottom:10px}canvas{width:100%;height:100%;display:block}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:11px;white-space:nowrap}th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line)}th{position:sticky;top:0;background:var(--bg);color:var(--mute);font-size:10px;font-weight:700;text-transform:uppercase}th:first-child,td:first-child{text-align:left}tr.best td{font-weight:700;background:color-mix(in srgb,var(--ac) 6%,var(--panel))}.sw{display:inline-block;width:16px;height:0;border-top:3px solid;vertical-align:middle;margin-right:6px}
+@media(max-width:1100px){.dashboard{grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:14px;padding:14px}.top{padding:14px 18px}}
+@media(max-width:980px){.dashboard{display:flex;flex-direction:column;gap:16px}.setup{position:static;max-height:none;width:100%;order:1}.results{width:100%;order:2}.setup-actions{position:static}}
+@media(max-width:700px){.top{padding:12px 14px}.dashboard{display:flex;flex-direction:column;padding:10px;gap:16px}.setup{position:static;max-height:none;width:100%;order:1}.results{width:100%;order:2}.setup-actions{position:static}.results-head h2{font-size:18px}.chart-wrap{height:180px}.param-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><div class="mark" aria-hidden="true">S</div><div><h1>The Strat</h1><p class="subtitle">Daily strategy research · rule comparison</p></div></div>
+  <div id="data-badge" class="badge">Loading data</div>
+</header>
+<main class="dashboard">
+  <aside class="setup" aria-label="Benchmark setup">
+    <div class="setup-head"><h2>Benchmark setup</h2><p>Choose market data, period and risk assumptions.</p></div>
+    <section class="group">
+      <div class="group-title"><span class="step">01</span><h2>Market data</h2></div>
+      <div class="field"><label for="src">Data source</label><select id="src"><option value="project" selected>Dukascopy daily feed</option><option value="csv">Import CSV files</option><option value="sample">Synthetic sample</option></select></div>
+      <div id="csv-fields" class="csv-fields" hidden>
+        <div class="field" style="margin-top:9px"><label for="f">Pair CSV files</label><input type="file" id="f" accept=".csv,.txt" multiple></div>
+        <div class="field" style="margin-top:8px"><label for="rf">Rate files for carry (optional)</label><input type="file" id="rf" accept=".json" multiple></div>
+      </div>
+      <div class="button-row"><button class="secondary" id="proj">Load local data</button><button class="secondary" id="refresh">Sync Dukascopy</button></div>
+      <p class="small-status" id="msg" role="status" aria-live="polite">Loading cached Dukascopy bars…</p>
+      <div id="data-load-progress" class="progress-wrap" hidden><progress id="data-load-bar" max="16" value="0" aria-label="Local broker data loading"></progress><span id="data-load-text" class="small-status" role="status" aria-live="polite"></span></div>
+      <p class="section-copy" id="source-note">Uses broker D1 bars cached in data/broker. Sync needs internet access.</p>
+    </section>
+    <section class="group">
+      <div class="group-title"><span class="step">02</span><h2>Test period</h2></div>
+      <div class="grid-two">
+        <div class="field"><label for="d0">From</label><input id="d0" type="date" value="2014-01-01"></div>
+        <div class="field"><label for="d1">To</label><input id="d1" type="date" value="2026-10-29"></div>
+      </div>
+    </section>
+    <section class="group sample-group" id="sample-section" hidden>
+      <div class="group-title"><span class="step">ALT</span><h2>Sample assumptions</h2></div>
+      <p class="section-copy">Synthetic data is for checking the interface only, not evidence about market performance.</p>
+      <div class="field" style="margin-top:8px"><label for="pairs">Pairs</label><input id="pairs" value="EURUSD,GBPUSD,USDJPY,AUDUSD"></div>
+      <p class="range-hint"><span>From</span><span>To</span><span>Step</span></p>
+      <div class="param-grid" id="gen"></div>
+    </section>
+    <section class="group">
+      <div class="group-title"><span class="step">03</span><h2>Costs and risk</h2></div>
+      <p class="range-hint"><span>From</span><span>To</span><span>Step</span></p>
+      <div class="param-grid" id="cost"></div>
+    </section>
+    <div class="setup-actions">
+      <div id="count" class="scenario-count"></div>
+      <button id="run" class="run">Run benchmark</button>
+      <div id="progress" class="progress-wrap" hidden><progress id="bar" max="100" value="0" aria-label="Benchmark progress"></progress><span id="timer" role="status" aria-live="polite"></span></div>
+    </div>
+  </aside>
+  <section class="results" aria-label="Benchmark results">
+    <header class="results-head"><div><h2>Results</h2><p id="results-summary">Select your settings, then run the benchmark.</p></div><div class="save-controls"><input id="save-name" aria-label="Saved benchmark name" placeholder="Setup name"><button id="save-benchmark" disabled>Save setup</button><span id="save-message" role="status"></span></div></header>
+    <div id="err" role="alert"></div>
+    <div id="empty" class="empty"><div><strong>Ready when you are</strong>Configure the benchmark on the left. The averaged rule comparison will appear here.</div></div>
+    <div id="out"></div>
+  </section>
+</main>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+let lastBenchmarkConfig = null, lastBenchmarkSummary = null;
+let B, D, C;
+try { [B, D, C] = await Promise.all([import('./src/browser/benchmark.js'), import('./src/browser/data.js'), import('./src/browser/carry.js')]); }
+catch (e) {
+  const need = ["src/strat.js", "src/stats.js", "src/browser/benchmark.js", "src/browser/backtest.js", "src/browser/portfolio.js", "src/browser/carry.js", "src/browser/data.js", "src/browser/sample.js"];
+  const bad = [];
+  for (const f of need) {
+    try { const r = await fetch("./" + f); if (!r.ok) bad.push(f + " (not found, HTTP " + r.status + ")"); else if (!/javascript|ecmascript/i.test(r.headers.get("content-type") || "")) bad.push(f + " (served as " + (r.headers.get("content-type") || "unknown type") + ")"); }
+    catch { bad.push(f + " (could not be fetched)"); }
+  }
+  $("err").innerHTML = "Could not load the modules.<br>" + (bad.length ? "Unavailable files:<br>" + bad.join("<br>") : "Every file was found, so a file likely has a syntax error: " + e.message) + "<br>Start the launcher with <code>bun start</code> and open <code>http://localhost:3000/benchmark</code>.";
+  throw e;
+}
+const GEN = [["seed", "Random seed", 1], ["dailyVolPct", "Daily volatility %", 0.5], ["driftPctYear", "Drift %/year", 0],
+  ["momentum", "Momentum (-0.3 to 0.3)", 0], ["volClustering", "Vol clustering (0 to 0.95)", 0.8], ["correlation", "Pair correlation (0 to 0.9)", 0.3]];
+const COST = [["spread", "Spread (points)", 10], ["commissionBp", "Commission/side (bp)", 0.5], ["slippageBp", "Slippage/side (bp)", 0.5],
+  ["riskPct", "Risk per trade %", 0.25], ["maxOpenRiskPct", "Max open risk %", 2], ["maxPositions", "Max positions", 8]];
+const field = ([k, l, v]) => `<div class="field"><label>${l}</label><div class="tri">
+<input id="${k}_a" type="number" step="any" value="${v}" aria-label="${l} from" placeholder="from">
+<input id="${k}_b" type="number" step="any" value="${v}" aria-label="${l} to" placeholder="to">
+<input id="${k}_s" type="number" step="any" value="1" aria-label="${l} step" placeholder="step"></div></div>`;
+$("gen").innerHTML = GEN.map(field).join(""); $("cost").innerHTML = COST.map(field).join("");
+const vals = k => B.rangeValues(+$(k + "_a").value, +$(k + "_b").value, +$(k + "_s").value);
+
+let LOADED = {}, RATES = {};
+let endDateEdited = false;
+const RATE_BY_ID = Object.fromEntries(Object.entries(C.RATE_SERIES).map(([c, id]) => [id, c]));
+const ALL16 = ["EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD","USDCHF","NZDUSD","EURGBP","EURJPY","GBPJPY","EURCHF","EURAUD","EURCAD","AUDJPY","CADJPY","CHFJPY"];
+const latestDate = data => {
+  const latest = Math.max(0, ...Object.values(data).map(bars => bars.time[bars.time.length - 1] || 0));
+  return latest ? new Date(latest * 1000).toISOString().slice(0, 10) : "unknown";
+};
+const msg = (message = "") => {
+  const pairs = Object.keys(LOADED).length, source = $("src").value;
+  $("data-badge").textContent = source === "sample" ? "Synthetic data" : pairs ? `Dukascopy · ${pairs} pairs` : "No market data";
+  $("data-badge").classList.toggle("sim", source === "sample");
+  if (!message) message = source === "sample" ? "Synthetic sample selected · no live connection needed." : pairs ? `${pairs} pairs loaded · latest bar ${latestDate(LOADED)}${Object.keys(RATES).length ? ` · ${Object.keys(RATES).length} rate series` : " · flat carry"}` : "No market data loaded.";
+  $("msg").textContent = message;
+};
+function updateSourceUI() {
+  const source = $("src").value;
+  $("csv-fields").hidden = source !== "csv";
+  $("sample-section").hidden = source !== "sample";
+  $("source-note").textContent = source === "sample" ? "Generated locally. Sample results are synthetic and not evidence about market performance." : source === "csv" ? "Import daily OHLC CSVs. Header: date,open,high,low,close." : "Uses cached Dukascopy D1 bars in data/broker. Sync needs internet access.";
+  msg();
+}
+async function loadProjectData() {
+  $("msg").textContent = "Loading cached Dukascopy bars…";
+  const loadProgress = $("data-load-progress"), loadBar = $("data-load-bar"), loadText = $("data-load-text");
+  loadProgress.hidden = false; loadBar.value = 0;
+  const loaded = {}, missing = [];
+  let completed = 0;
+  await Promise.all(ALL16.map(async pair => {
+    try {
+      const response = await fetch(`./data/broker/${pair}.csv`);
+      if (!response.ok) throw new Error("not found");
+      loaded[pair] = D.parseCsv(await response.text(), { symbol: pair, spread: 10 });
+    } catch { missing.push(pair); }
+    finally { loadBar.value = ++completed; loadText.textContent = `${completed} / ${ALL16.length} pairs checked · ${Object.keys(loaded).length} loaded`; }
+  }));
+  loadProgress.hidden = true;
+  let availableRates = [];
+  try {
+    const response = await fetch("./api/rates");
+    if (response.ok) availableRates = await response.json();
+  } catch {}
+  const rateIds = new Set(availableRates);
+  await Promise.all(Object.entries(C.RATE_SERIES).filter(([, id]) => rateIds.has(id)).map(async ([currency, id]) => {
+    try {
+      const response = await fetch(`./data/rates/${id}.json`);
+      if (response.ok) RATES[currency] = await response.json();
+    } catch {}
+  }));
+  if (Object.keys(loaded).length) {
+    LOADED = loaded;
+    $("src").value = "project";
+    if (!endDateEdited) $("d1").value = latestDate(LOADED);
+    updateSourceUI();
+    msg(`${Object.keys(loaded).length} of 16 broker pairs loaded · latest bar ${latestDate(LOADED)}${missing.length ? ` · ${missing.length} missing` : ""}`);
+  } else {
+    msg("No cached broker bars found. Choose sample data or sync the live feed.");
+  }
+  count();
+  return Object.keys(loaded).length;
+}
+$("f").onchange = async e => {
+  $("err").textContent = "";
+  LOADED = {};
+  for (const f of e.target.files) {
+    const pair = f.name.replace(/\.\w+$/, "").toUpperCase();
+    try { LOADED[pair] = D.parseCsv(await f.text(), { symbol: pair, spread: 10 }); } catch (x) { $("err").textContent = `${f.name}: ${x.message}`; }
+  }
+  $("src").value = "csv"; updateSourceUI(); count();
+};
+$("rf").onchange = async e => {
+  for (const f of e.target.files) { const c = RATE_BY_ID[f.name.replace(/\.json$/i, "")]; if (c) try { RATES[c] = JSON.parse(await f.text()); } catch {} }
+  msg();
+};
+$("refresh").onclick = async () => {
+  const button = $("refresh"), runButton = $("run");
+  button.disabled = true; runButton.disabled = true; $("msg").classList.remove("error");
+  msg("Contacting Dukascopy through the local launcher…");
+  try {
+    const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ script: "preset", args: "update" }) });
+    if (!response.ok) throw new Error((await response.json()).error || "Data sync request failed.");
+    const reader = response.body.getReader(), decoder = new TextDecoder(); let output = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      output += decoder.decode(value, { stream: true });
+      const lines = output.trim().split(/\r?\n/);
+      $("msg").textContent = lines[lines.length - 1] || "Syncing broker data…";
+    }
+    if (!/\[finished, exit code 0\]/.test(output)) throw new Error("Data sync did not finish successfully. Check the launcher output.");
+    const pairs = await loadProjectData();
+    if (!pairs) throw new Error("Sync finished but no broker CSVs were available.");
+    msg(`Dukascopy sync complete · ${pairs} pairs · latest bar ${latestDate(LOADED)}`);
+  } catch (error) {
+    $("msg").classList.add("error");
+    msg(error.message.includes("Failed to fetch") ? "Launcher unavailable. Start with bun start; cached data and sample mode remain usable." : error.message);
+  } finally {
+    button.disabled = false; runButton.disabled = false;
+  }
+};
+
+const MAX = 12;
+const grids = () => {
+  const sample = $("src").value === "sample";
+  const gen = sample ? B.expandGrid(Object.fromEntries(GEN.map(([k]) => [k, vals(k)]))) : [{}];
+  const cost = B.expandGrid(Object.fromEntries(COST.map(([k]) => [k, vals(k)])));
+  return { gen, cost, n: gen.length * cost.length };
+};
+function count() {
+  const g = grids();
+  $("count").textContent = `${g.n} scenario${g.n === 1 ? "" : "s"} × ${B.VARIANTS.length} rule variants` + (g.n > MAX ? ` (over the ${MAX} limit, narrow a range)` : "");
+}
+document.addEventListener("input", count); $("src").onchange = count; count(); msg();
+
+const COLORS = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#00a8a8", "#c49a00", "#f032e6", "#7a8f1a", "#808080", "#a05a2c", "#1b1b1b"];
+const pct = x => (x * 100).toFixed(1) + "%", f2 = x => x === Infinity ? "inf" : Number.isFinite(x) ? x.toFixed(2) : "n/a";
+
+function draw(canvas, rows) {
+  const r = devicePixelRatio || 1; canvas.width = canvas.clientWidth * r; canvas.height = canvas.clientHeight * r;
+  const x = canvas.getContext("2d"); x.scale(r, r);
+  const W = canvas.clientWidth, H = canvas.clientHeight, cs = getComputedStyle(document.body);
+  const all = rows.flatMap(v => v.curve), lo = Math.min(...all), hi = Math.max(...all), n = rows[0].curve.length;
+  const X = i => 6 + i / (n - 1) * (W - 12), Y = e => H - 14 - (e - lo) / (hi - lo || 1) * (H - 28);
+  x.strokeStyle = cs.getPropertyValue("--line"); x.beginPath(); x.moveTo(0, Y(1)); x.lineTo(W, Y(1)); x.stroke();
+  rows.forEach((v, k) => {
+    x.strokeStyle = COLORS[k]; x.lineWidth = 1.6; x.setLineDash(v.entry === "close" ? [5, 3] : []); x.beginPath();
+    v.curve.forEach((e, i) => i ? x.lineTo(X(i), Y(e)) : x.moveTo(X(i), Y(e))); x.stroke();
+  });
+  x.setLineDash([]); x.fillStyle = cs.getPropertyValue("--mute"); x.font = "11px system-ui"; x.fillText(`${lo.toFixed(2)}x to ${hi.toFixed(2)}x`, 8, 12);
+}
+
+function average(all) {
+  const mean = f => all.reduce((t, rows) => t + f(rows), 0) / all.length;
+  const len = Math.min(...all.flatMap(rows => rows.map(v => v.curve.length)));
+  return all[0].map((v, k) => {
+    const fin = all.map(rows => rows[k].pf).filter(Number.isFinite);
+    return { ...v, trades: Math.round(mean(r => r[k].trades)), win: mean(r => r[k].win), avgR: mean(r => r[k].avgR),
+      pf: fin.length ? fin.reduce((a, b) => a + b, 0) / fin.length : Infinity, cagr: mean(r => r[k].cagr), maxDD: mean(r => r[k].maxDD),
+      sharpe: mean(r => r[k].sharpe), curve: Array.from({ length: len }, (_, i) => mean(r => r[k].curve[i])) };
+  });
+}
+function show(title, rows) {
+  const best = rows.reduce((a, b) => b.sharpe > a.sharpe ? b : a);
+  const sec = document.createElement("div"); sec.className = "result-card";
+  sec.innerHTML = `<h3>${title}</h3><div class="chart-wrap"><canvas></canvas></div><div class="table-wrap"><table>
+<tr><th>Rules</th><th>Trades</th><th>Win</th><th>Avg R</th><th>PF</th><th>CAGR</th><th>MaxDD</th><th>Sharpe</th></tr>` +
+    rows.map((v, k) => `<tr class="${v === best ? "best" : ""}"><td><span class="sw" style="border-color:${COLORS[k]};${v.entry === "close" ? "border-top-style:dashed" : ""}"></span>${v.label}</td><td>${v.trades}</td><td>${pct(v.win)}</td><td>${f2(v.avgR)}</td><td>${f2(v.pf)}</td><td>${pct(v.cagr)}</td><td>${pct(v.maxDD)}</td><td>${f2(v.sharpe)}</td></tr>`).join("") + `</table></div>`;
+  $("out").append(sec); draw(sec.querySelector("canvas"), rows);
+}
+
+const duration = ms => {
+  const total = Math.ceil(ms / 1000), h = Math.floor(total / 3600), m = Math.floor(total % 3600 / 60), s = total % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+};
+$("run").onclick = async () => {
+  $("err").textContent = ""; $("out").innerHTML = "";
+  lastBenchmarkConfig = null; lastBenchmarkSummary = null; $("save-benchmark").disabled = true; $("save-message").textContent = "";
+  const g = grids(); if (g.n > MAX) { $("err").textContent = `Too many scenarios (${g.n}). Limit is ${MAX}.`; return; }
+  if (!g.n) { $("err").textContent = "Enter valid scenario values before running the benchmark."; return; }
+  const useSample = $("src").value === "sample";
+  if (!useSample && !Object.keys(LOADED).length) { $("err").textContent = "No real data is loaded. Sync Dukascopy, load local files, or choose synthetic sample."; return; }
+  const ctx = { startDate: $("d0").value, endDate: $("d1").value, rates: RATES };
+  const progress = $("progress"), bar = $("bar"), timer = $("timer"), button = $("run");
+  const started = performance.now(); let done = 0;
+  progress.hidden = false; bar.value = 0; button.disabled = true; button.textContent = "Running benchmark…";
+  $("empty").hidden = true;
+  const pairCount = useSample ? $("pairs").value.split(",").filter(Boolean).length : Object.keys(LOADED).length;
+  $("results-summary").textContent = `${pairCount} pairs · ${g.n} scenario${g.n === 1 ? "" : "s"} · ${ctx.startDate} to ${ctx.endDate}`;
+  const updateProgress = () => {
+    const elapsed = performance.now() - started;
+    const remaining = done ? elapsed / done * (g.n - done) : null;
+    bar.value = done / g.n * 100;
+    timer.textContent = `${done} / ${g.n} scenarios · elapsed ${duration(elapsed)} · ${remaining === null ? "estimating remaining time" : `about ${duration(remaining)} remaining`}`;
+  };
+  updateProgress();
+  const ticker = setInterval(updateProgress, 250);
+  let worker;
+  try {
+    worker = new Worker(new URL("./src/browser/benchmark-worker.js", import.meta.url), { type: "module" });
+    const all = await new Promise((resolve, reject) => {
+      worker.onmessage = ({ data }) => {
+        if (data.type === "progress") { done = data.completed; updateProgress(); }
+        else if (data.type === "complete") resolve(data.rows);
+        else if (data.type === "error") reject(new Error(data.message));
+      };
+      worker.onerror = event => reject(new Error(event.message || "Benchmark worker failed"));
+      worker.postMessage({ gen: g.gen, cost: g.cost, ctx, useSample, pairs: $("pairs").value, loaded: LOADED });
+    });
+    const averaged = average(all);
+    show(`Average of ${all.length} scenario${all.length === 1 ? "" : "s"}`, averaged);
+    lastBenchmarkConfig = {
+      source: useSample ? "sample" : $("src").value,
+      pairs: useSample ? $("pairs").value.split(",").map(pair => pair.trim().toUpperCase()).filter(Boolean) : Object.keys(LOADED),
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+      parameters: { ...g.gen[0], ...g.cost[0] },
+      scenarios: { generator: g.gen, costs: g.cost }
+    };
+    lastBenchmarkSummary = averaged.map(({ curve, ...row }) => row);
+    $("save-benchmark").disabled = false;
+    done = g.n; updateProgress();
+    timer.textContent = `${g.n} / ${g.n} scenarios · completed in ${duration(performance.now() - started)}`;
+    $("results-summary").textContent = `Averaged across ${all.length} run${all.length === 1 ? "" : "s"} · ${ctx.startDate} to ${ctx.endDate}`;
+  } catch (error) {
+    $("err").textContent = error.message;
+    $("results-summary").textContent = "Benchmark did not complete.";
+    if (!$("out").children.length) $("empty").hidden = false;
+    timer.textContent = `Stopped after ${done} of ${g.n} scenarios · elapsed ${duration(performance.now() - started)}`;
+  } finally {
+    clearInterval(ticker); worker?.terminate(); button.disabled = false; button.textContent = "Run benchmark";
+  }
+};
+$("save-benchmark").onclick = async () => {
+  if (!lastBenchmarkConfig) return;
+  const name = $("save-name").value.trim();
+  if (!name) { $("save-message").textContent = "Enter a setup name first."; return; }
+  const button = $("save-benchmark"); button.disabled = true; $("save-message").textContent = "Saving…";
+  try {
+    const response = await fetch("/api/benchmark/save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, config: lastBenchmarkConfig, summary: lastBenchmarkSummary }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not save this setup.");
+    $("save-message").textContent = `Saved: ${result.file}`;
+  } catch (error) { $("save-message").textContent = error.message; }
+  finally { button.disabled = false; }
+};
+$("proj").onclick = loadProjectData;
+$("d1").addEventListener("input", () => { endDateEdited = true; });
+$("src").onchange = () => {
+  if ($("src").value === "csv") LOADED = {};
+  updateSourceUI(); count();
+  if ($("src").value === "project") loadProjectData();
+};
+$("rf").onchange = async e => {
+  for (const file of e.target.files) {
+    const currency = RATE_BY_ID[file.name.replace(/\.json$/i, "")];
+    if (currency) try { RATES[currency] = JSON.parse(await file.text()); } catch {}
+  }
+  msg();
+};
+updateSourceUI();
+loadProjectData();
+</script>
+</body>
+</html>

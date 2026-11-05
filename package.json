@@ -1,0 +1,22 @@
+{
+  "name": "strat-backtest",
+  "module": "src/backtest.js",
+  "type": "module",
+  "scripts": {
+    "start": "bun launcher.js",
+    "setup": "bun install",
+    "update-data": "bun run src/fetchBroker.js --update",
+    "preset": "bun run src/preset.js",
+    "all": "bun run src/preset.js all",
+    "backtest": "bun run src/backtest.js",
+    "fetch-broker": "bun run src/fetchBroker.js",
+    "sweep": "bun run src/sweep.js",
+    "walkforward": "bun run src/walkforward.js",
+    "robustness": "bun run src/robustness.js",
+    "portfolio": "bun run src/portfolio.js",
+    "portfolio-robustness": "bun run src/portfolioRobustness.js"
+  },
+  "dependencies": {
+    "dukascopy-node": "^1.51.1"
+  }
+}
