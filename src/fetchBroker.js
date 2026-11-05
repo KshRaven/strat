@@ -8,7 +8,11 @@ import { join } from 'node:path';
 import { reportProgress } from './progress.js';
 
 const ROOT = join(import.meta.dir, '..');
-const OUT = join(ROOT, 'data', 'broker');
+const TFS = { d1: ['broker', 'd1'], h1: ['broker_h1', 'h1'] };
+const TF_KEY = String(process.argv.includes('--tf') ? process.argv[process.argv.indexOf('--tf') + 1] : 'd1').toLowerCase();
+if (!TFS[TF_KEY]) { console.error('--tf must be d1 or h1 (H4 is built from H1 with: python py/resample.py)'); process.exit(1); }
+const OUT = join(ROOT, 'data', TFS[TF_KEY][0]);
+const INTRADAY = TF_KEY !== 'd1';
 const DEFAULT_PAIRS = [
     'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'EURGBP',
     'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD', 'AUDJPY', 'CADJPY', 'CHFJPY'
@@ -31,7 +35,7 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const pairs = String(args.pairs ?? DEFAULT_PAIRS.join(',')).split(',').map(value => value.trim().toUpperCase());
-const from = new Date(String(args.from ?? '2008-01-01'));
+const from = new Date(String(args.from ?? (INTRADAY ? '2014-01-01' : '2008-01-01')));
 // Live by default: the end date is tomorrow (UTC), so every run pulls up to the latest completed bar.
 const tomorrow = new Date(Date.now() + 86400000);
 const to = new Date(String(args.to ?? tomorrow.toISOString().slice(0, 10)));
@@ -60,18 +64,19 @@ for (const [pairIndex, pair] of pairs.entries()) {
                 if (c.length >= 5) existing.set(c[0], { open: c[1], high: c[2], low: c[3], close: c[4] });
             }
             const last = [...existing.keys()].sort().pop();
-            if (last) start = new Date(Date.parse(`${last}T00:00:00Z`) - 3 * 86400000);
+            if (last) start = new Date(Date.parse(INTRADAY ? last : `${last}T00:00:00Z`) - 3 * 86400000);
         }
         const data = await getHistoricalRates({
             instrument: pair.toLowerCase(),
             dates: { from: start, to },
-            timeframe: 'd1',
+            timeframe: TFS[TF_KEY][1],
             format: 'json',
             priceType: 'bid'
         });
         const byDate = new Map(existing);
         for (const bar of data) {
-            const date = new Date(bar.timestamp).toISOString().slice(0, 10);
+            const iso = new Date(bar.timestamp).toISOString();
+            const date = INTRADAY ? iso.slice(0, 19) + 'Z' : iso.slice(0, 10);
             byDate.set(date, { open: bar.open, high: bar.high, low: bar.low, close: bar.close });
         }
         const rows = ['date,open,high,low,close'];

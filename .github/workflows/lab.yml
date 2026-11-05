@@ -1,0 +1,35 @@
+# Runs the Python/Numba analyses on GitHub's machines and commits results/lab/*.json,
+# so index.html on GitHub Pages (or a phone) can show full results with no local backend.
+# Actions tab -> "Strat lab batch" -> Run workflow.
+name: Strat lab batch
+on:
+  workflow_dispatch:
+    inputs:
+      tf:
+        description: "Timeframes, comma separated (D1,H4,H1)"
+        default: "D1"
+      start:
+        description: "Start date"
+        default: "2014-01-01"
+  workflow_run:
+    workflows: ["Fetch Dukascopy data"]
+    types: [completed]
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: if [ -d data/broker_h1 ]; then python py/resample.py; fi
+      - name: Run
+        run: python py/batch.py --tf "${{ inputs.tf || 'D1' }}" --start "${{ inputs.start || '2014-01-01' }}"
+      - name: Commit results
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add results/lab data/broker_h4 || true
+          if git diff --cached --quiet; then echo "No changes"; else git commit -m "lab: refresh results" && git push; fi

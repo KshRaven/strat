@@ -34,12 +34,10 @@ bootstrap, deflated Sharpe, and a portfolio engine with daily mark-to-market.
 |---|---|---|
 | **A PC with Bun** | `bun start` (or double-click `start.bat` on Windows) | Control workspace at `http://localhost:3000`: install, fetch live data, run every analysis, read results. Full engine (walk-forward, deflated Sharpe, portfolio). |
 | **A PC, terminal fan** | `bun run preset all` | The same analyses from the command line, no flags to type. |
-| **A phone or tablet** | `index.html` / `run.html` hosted with GitHub Pages | Everything runs in the browser, no install. Edit files with the GitHub mobile app or github.dev. |
-| **Phone + fresh data** | Select CSV files in `index.html` / `run.html` | Broker data is not stored in the repo; fetch it locally on a PC, then provide the CSV files. |
+| **A phone or tablet** | `index.html` hosted with GitHub Pages | The browser engine and workflow results run without a local install. |
+| **Phone + fresh data** | Select CSV files in `index.html` | Broker data is not stored in the repo; fetch it locally on a PC, then provide the CSV files. |
 
 All of these use the same rule code (`src/strat.js`, `src/stats.js`), so results agree.
-`run.html` is a small standalone port of the rules with no module loading, handy as a
-fallback when you only have a phone and pasted CSV text.
 
 ## The Strat explained from zero
 
@@ -364,8 +362,8 @@ Replace `--end` with today's date to include new bars.
 ### Browser only (no Bun)
 
 - With the panel running, open `http://localhost:3000/benchmark` and press **Load data from project folder**.
-- On a phone or any host without Bun, publish the repo with GitHub Pages and open `index.html`
-  (or `run.html` for the standalone version), then pick CSV files.
+- On a phone or any host without Bun, publish the repo with GitHub Pages and open `index.html`,
+  then pick CSV files or use the precomputed workflow results.
 
 ## Live data
 
@@ -639,7 +637,6 @@ launcher.js              # local control workspace server (bun start)
 workspace.html           # local control workspace
 start.bat                # Windows double-click starter
 index.html               # browser benchmark (12 rule variants) using src/*.js
-run.html                 # standalone browser port, no modules, phone friendly
 .github/workflows/fetch-data.yml  # GitHub Actions data refresh
 src/preset.js            # one-command presets (update, walkforward, portfolio, all)
 src/fetchBroker.js       # Dukascopy D1 feed download (live, --update)

@@ -3,7 +3,8 @@
 // Then open http://localhost:3000
 //
 // - "/"          control workspace (workspace.html): install, fetch live data, run any command, read results
-// - "/benchmark" the in-browser benchmark page (index.html) with ./data/broker served live
+// - "/benchmark" the main page (index.html): Benchmark + lab tabs, with ./data/broker served live
+// - "/api/lab/*" is forwarded to the Python backend (python py/server.py, default port 8765) when it is running
 // - Listens on 127.0.0.1 only, because it can start processes on your machine.
 import { join, basename, resolve, sep } from "path";
 import { readdirSync, statSync, existsSync, readFileSync } from "fs";
@@ -20,8 +21,9 @@ const SCRIPTS = new Set([
   "robustness", "portfolio", "portfolio-robustness",
 ]);
 // Folders the browser pages may read (module imports, CSV data, rates). Nothing else is served.
-const STATIC_DIRS = ["src", "data/broker", "data/rates", "results"];
-const STATIC_FILES = new Set(["index.html", "run.html", "workspace.html"]);
+const STATIC_DIRS = ["src", "web", "data/broker", "data/broker_h4", "data/broker_h1", "data/rates", "results"];
+const PY_PORT = Number(process.env.PY_PORT) || 8765;
+const STATIC_FILES = new Set(["index.html", "workspace.html"]);
 
 let current = null; // one job at a time
 
@@ -127,7 +129,21 @@ Bun.serve({
     const url = new URL(req.url);
 
     if (url.pathname === "/") return new Response(Bun.file(join(ROOT, "workspace.html")));
-    if (url.pathname === "/benchmark") return new Response(Bun.file(join(ROOT, "index.html")));
+    if (url.pathname === "/benchmark" || url.pathname === "/lab.html") return new Response(Bun.file(join(ROOT, "index.html")));
+
+    // Python backend (Numba): forward the lab/benchmark API so index.html works from this port too
+    if (url.pathname.startsWith("/api/lab/")) {
+      try {
+        return await fetch(`http://127.0.0.1:${PY_PORT}${url.pathname}${url.search}`, {
+          method: req.method,
+          headers: { "content-type": req.headers.get("content-type") || "application/json" },
+          body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.text(),
+        });
+      } catch (error) {
+        console.log(`[lab proxy] Python backend not reachable on port ${PY_PORT}: ${error.message}`);
+        return json({ error: `Python backend is not running on port ${PY_PORT}. Start it with start.bat or python py/server.py.` }, 502);
+      }
+    }
 
     if (url.pathname === "/api/status") {
       const brokerFiles = listDir("data/broker", [".csv"]);

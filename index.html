@@ -30,14 +30,41 @@ button{font:650 12px inherit;font-family:inherit;cursor:pointer;border:1px solid
 @media(max-width:1100px){.dashboard{grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:14px;padding:14px}.top{padding:14px 18px}}
 @media(max-width:980px){.dashboard{display:flex;flex-direction:column;gap:16px}.setup{position:static;max-height:none;width:100%;order:1}.results{width:100%;order:2}.setup-actions{position:static}}
 @media(max-width:700px){.top{padding:12px 14px}.dashboard{display:flex;flex-direction:column;padding:10px;gap:16px}.setup{position:static;max-height:none;width:100%;order:1}.results{width:100%;order:2}.setup-actions{position:static}.results-head h2{font-size:18px}.chart-wrap{height:180px}.param-grid{grid-template-columns:1fr 1fr}}
+
+.tabs{display:flex;gap:2px;overflow-x:auto;background:var(--panel);border-bottom:1px solid var(--line);padding:0 clamp(18px,2.4vw,48px)}.tabs:empty{display:none}
+.tabs button{background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--ink);padding:10px 14px;white-space:nowrap}.tabs button:hover{filter:none;background:color-mix(in srgb,var(--ac) 8%,var(--panel))}.tabs button.on{border-bottom-color:var(--ac);font-weight:700}
+.dashboard[hidden],#lab[hidden]{display:none}.top-badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.cancel{margin-top:8px;width:100%}.cancel[hidden]{display:none}
+/* ---- Strat lab (all rules scoped to #lab so they cannot touch the benchmark page) ---- */
+#lab{--bg:#fff;--fg:#1c1f24;--mut:#667;--card:#f4f6f9;--line:#d7dce3;--up:#1a9f62;--dn:#d9433b;--acc:#2f6fdd;--warn:#c58a00;color:var(--fg);background:var(--bg);width:100%;max-width:2800px;margin:0 auto;min-height:60vh}
+@media (prefers-color-scheme:dark){#lab{--bg:#14171c;--fg:#e6e9ee;--mut:#98a1ad;--card:#1d2128;--line:#303744;--up:#38c585;--dn:#ee6a62;--acc:#6b9cff;--warn:#e3b341}}
+#lab .lab-bar{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#lab select,#lab input,#lab button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:32px;width:auto}
+#lab button{cursor:pointer;font-weight:400}#lab button:hover{filter:none}#lab button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+#lab input[type=text],#lab input[type=number],#lab input[type=date]{width:100px}#lab input[type=range]{padding:0;min-height:24px}
+#lab .lbadge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:10px;background:var(--card);border:1px solid var(--line);margin:0;font-weight:400;cursor:pointer}
+#lab label{display:inline-block;font-weight:400;font-size:inherit;margin:0}
+#lab details.params{margin:6px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+#lab details.params .g{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}#lab details.params label{display:flex;flex-direction:column;font-size:12px;color:var(--mut)}
+#lab .lab-view{padding:10px;max-width:1200px;margin:auto}
+#lab .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px}
+#lab .row{display:flex;flex-wrap:wrap;gap:10px}#lab .row>.card{flex:1 1 260px}
+#lab table{border-collapse:collapse;width:100%;font-size:13px;white-space:normal}#lab th,#lab td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+#lab th{position:static;background:none;color:inherit;text-transform:none;font-size:inherit;font-weight:700}
+#lab th:first-child,#lab td:first-child{text-align:left}#lab .scroll{overflow-x:auto}
+#lab .up{color:var(--up)}#lab .dn{color:var(--dn)}#lab .mut{color:var(--mut)}#lab .warn{color:var(--warn)}
+#lab .kpi{display:flex;flex-wrap:wrap;gap:8px}#lab .kpi div{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 10px}#lab .kpi b{display:block;font-size:16px}
+#lab canvas{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+#lab .obs li{margin:4px 0}#lab .obs .bad{color:var(--dn)}#lab .obs .good{color:var(--up)}#lab .obs .meh{color:var(--warn)}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="brand"><div class="mark" aria-hidden="true">S</div><div><h1>The Strat</h1><p class="subtitle">Daily strategy research · rule comparison</p></div></div>
-  <div id="data-badge" class="badge">Loading data</div>
+  <div class="top-badges"><div id="mode" class="badge sim">Detecting engine…</div><div id="data-badge" class="badge">Loading data</div></div>
 </header>
-<main class="dashboard">
+<nav id="tabs" class="tabs" aria-label="Sections"></nav>
+<main class="dashboard" id="bench">
   <aside class="setup" aria-label="Benchmark setup">
     <div class="setup-head"><h2>Benchmark setup</h2><p>Choose market data, period and risk assumptions.</p></div>
     <section class="group">
@@ -71,9 +98,15 @@ button{font:650 12px inherit;font-family:inherit;cursor:pointer;border:1px solid
       <p class="range-hint"><span>From</span><span>To</span><span>Step</span></p>
       <div class="param-grid" id="cost"></div>
     </section>
+    <section class="group">
+      <div class="group-title"><span class="step">04</span><h2>Engine</h2></div>
+      <div class="field"><label for="engine">Run benchmark on</label><select id="engine"><option value="browser" selected>Browser (Web Worker)</option><option value="backend">Python backend (Numba, all cores)</option></select></div>
+      <p class="section-copy" id="engine-note"></p>
+    </section>
     <div class="setup-actions">
       <div id="count" class="scenario-count"></div>
       <button id="run" class="run">Run benchmark</button>
+      <button id="cancel" class="secondary cancel" hidden>Cancel run</button>
       <div id="progress" class="progress-wrap" hidden><progress id="bar" max="100" value="0" aria-label="Benchmark progress"></progress><span id="timer" role="status" aria-live="polite"></span></div>
     </div>
   </aside>
@@ -84,6 +117,27 @@ button{font:650 12px inherit;font-family:inherit;cursor:pointer;border:1px solid
     <div id="out"></div>
   </section>
 </main>
+<section id="lab" hidden aria-label="Strat lab">
+  <div class="lab-bar">
+    <select id="tf" aria-label="timeframe"><option>D1</option><option>H4</option><option>H1</option></select>
+    <input id="pair" type="text" value="EURUSD" list="lab-pairs" aria-label="pair"><datalist id="lab-pairs"></datalist>
+    <button id="load" class="pri">Load data</button>
+    <label class="lbadge">CSV <input id="file" type="file" accept=".csv,text/csv" style="display:none"></label>
+    <button id="synth" title="Synthetic random-walk data; not evidence of an edge">Sample</button>
+    <span id="lab-msg" class="mut"></span>
+  </div>
+  <details class="params"><summary>Parameters</summary><div class="g" id="pform"></div></details>
+  <div id="view" class="lab-view"><div class="card">Loading…</div></div>
+</section>
+<script src="web/engine.js"></script>
+<script src="web/lab.js"></script>
+<script src="web/replay.js"></script>
+<script src="web/views.js"></script>
+<script>
+// Some phone previews block sibling files: say so, and keep the Benchmark dashboard usable.
+if (!window.Lab || !window.StratEngine) document.getElementById('view').innerHTML = '<div class="card">Could not load web/*.js here; only the Benchmark dashboard is available.</div>';
+else Lab.boot();
+</script>
 
 <script type="module">
 const $ = id => document.getElementById(id);
@@ -109,7 +163,10 @@ const field = ([k, l, v]) => `<div class="field"><label>${l}</label><div class="
 <input id="${k}_b" type="number" step="any" value="${v}" aria-label="${l} to" placeholder="to">
 <input id="${k}_s" type="number" step="any" value="1" aria-label="${l} step" placeholder="step"></div></div>`;
 $("gen").innerHTML = GEN.map(field).join(""); $("cost").innerHTML = COST.map(field).join("");
-const vals = k => B.rangeValues(+$(k + "_a").value, +$(k + "_b").value, +$(k + "_s").value);
+const engine = () => $("engine").value;
+const MAX_BROWSER = 12;
+const maxScenarios = () => engine() === "backend" ? (window.Lab?.meta?.benchmark_max ?? 100000) : MAX_BROWSER;
+const vals = k => B.rangeValues(+$(k + "_a").value, +$(k + "_b").value, +$(k + "_s").value, engine() === "backend" ? 1000 : 12);
 
 let LOADED = {}, RATES = {};
 let endDateEdited = false;
@@ -212,18 +269,31 @@ $("refresh").onclick = async () => {
   }
 };
 
-const MAX = 12;
-const grids = () => {
+const prod = ax => Object.values(ax).reduce((t, v) => t * v.length, 1);
+const grids = () => {   // axes only: the full grid is expanded in the browser engine, or by the server
   const sample = $("src").value === "sample";
-  const gen = sample ? B.expandGrid(Object.fromEntries(GEN.map(([k]) => [k, vals(k)]))) : [{}];
-  const cost = B.expandGrid(Object.fromEntries(COST.map(([k]) => [k, vals(k)])));
-  return { gen, cost, n: gen.length * cost.length };
+  const genAx = sample ? Object.fromEntries(GEN.map(([k]) => [k, vals(k)])) : {};
+  const costAx = Object.fromEntries(COST.map(([k]) => [k, vals(k)]));
+  const nGen = prod(genAx), nCost = prod(costAx);
+  return { genAx, costAx, n: nGen * nCost };
 };
 function count() {
-  const g = grids();
-  $("count").textContent = `${g.n} scenario${g.n === 1 ? "" : "s"} × ${B.VARIANTS.length} rule variants` + (g.n > MAX ? ` (over the ${MAX} limit, narrow a range)` : "");
+  const g = grids(), max = maxScenarios(), be = engine() === "backend";
+  $("count").textContent = `${g.n} scenario${g.n === 1 ? "" : "s"} × ${B.VARIANTS.length} rule variants` + (be ? ` · ${g.n * B.VARIANTS.length} portfolio runs on the backend` : "") + (g.n > max ? ` (over the ${max} limit, narrow a range)` : "");
 }
-document.addEventListener("input", count); $("src").onchange = count; count(); msg();
+const updateEngineNote = () => {
+  const L = window.Lab, ok = L?.mode === "backend";
+  $("engine-note").textContent = engine() === "backend"
+    ? `Python + Numba on ${L?.meta?.cpus ?? "?"} CPU cores, up to ${maxScenarios()} scenarios. Reads data/broker and data/rates on the server. Higher-timeframe bias uses calendar week and month bars (the browser engine uses rolling 5/21-bar blocks), so numbers differ a little between engines.`
+    : `Runs in a Web Worker in this tab, limited to ${MAX_BROWSER} scenarios.` + (ok ? "" : " Start the Python backend (start.bat / python py/server.py) to run large sweeps.");
+};
+document.addEventListener("input", count); $("engine").onchange = () => { updateEngineNote(); count(); }; count(); msg(); updateEngineNote();
+(window.Lab ? Lab.ready : Promise.resolve()).then(() => {
+  const ok = window.Lab?.mode === "backend";
+  $("engine").querySelector('option[value="backend"]').disabled = !ok;
+  $("engine").value = ok ? "backend" : "browser";
+  updateEngineNote(); count();
+});
 
 const COLORS = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#00a8a8", "#c49a00", "#f032e6", "#7a8f1a", "#808080", "#a05a2c", "#1b1b1b"];
 const pct = x => (x * 100).toFixed(1) + "%", f2 = x => x === Infinity ? "inf" : Number.isFinite(x) ? x.toFixed(2) : "n/a";
@@ -256,8 +326,8 @@ function show(title, rows) {
   const best = rows.reduce((a, b) => b.sharpe > a.sharpe ? b : a);
   const sec = document.createElement("div"); sec.className = "result-card";
   sec.innerHTML = `<h3>${title}</h3><div class="chart-wrap"><canvas></canvas></div><div class="table-wrap"><table>
-<tr><th>Rules</th><th>Trades</th><th>Win</th><th>Avg R</th><th>PF</th><th>CAGR</th><th>MaxDD</th><th>Sharpe</th></tr>` +
-    rows.map((v, k) => `<tr class="${v === best ? "best" : ""}"><td><span class="sw" style="border-color:${COLORS[k]};${v.entry === "close" ? "border-top-style:dashed" : ""}"></span>${v.label}</td><td>${v.trades}</td><td>${pct(v.win)}</td><td>${f2(v.avgR)}</td><td>${f2(v.pf)}</td><td>${pct(v.cagr)}</td><td>${pct(v.maxDD)}</td><td>${f2(v.sharpe)}</td></tr>`).join("") + `</table></div>`;
+<tr><th>Rules</th><th>Trades</th><th>Win</th><th>Avg R</th><th>PF</th><th>CAGR</th><th>MaxDD</th><th>Sharpe</th>${rows[0].sharpeP05 !== undefined ? "<th>Sharpe 5–95%</th>" : ""}</tr>` +
+    rows.map((v, k) => `<tr class="${v === best ? "best" : ""}"><td><span class="sw" style="border-color:${COLORS[k]};${v.entry === "close" ? "border-top-style:dashed" : ""}"></span>${v.label}</td><td>${v.trades}</td><td>${pct(v.win)}</td><td>${f2(v.avgR)}</td><td>${f2(v.pf)}</td><td>${pct(v.cagr)}</td><td>${pct(v.maxDD)}</td><td>${f2(v.sharpe)}</td>${v.sharpeP05 !== undefined ? `<td>${f2(v.sharpeP05)} to ${f2(v.sharpeP95)}</td>` : ""}</tr>`).join("") + `</table></div>`;
   $("out").append(sec); draw(sec.querySelector("canvas"), rows);
 }
 
@@ -265,58 +335,99 @@ const duration = ms => {
   const total = Math.ceil(ms / 1000), h = Math.floor(total / 3600), m = Math.floor(total % 3600 / 60), s = total % 60;
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 };
+let activeJob = null;
+$("cancel").onclick = async () => {
+  if (!activeJob) return;
+  activeJob.cancelled = true; $("cancel").disabled = true;
+  try { await fetch("api/lab/job/cancel", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: activeJob.id }) }); } catch {}
+};
+async function runBackend(g, ctx, useSample, tick) {
+  const source = useSample ? "sample" : $("src").value === "csv" ? "data" : "project";
+  const cfg = { source, start: ctx.startDate, end: ctx.endDate, genAxes: g.genAx, costAxes: g.costAx };
+  if (source === "sample") cfg.samplePairs = $("pairs").value;
+  if (source === "project") cfg.pairs = Object.keys(LOADED);
+  if (source === "data") cfg.data = Object.fromEntries(Object.entries(LOADED).map(([p, b]) => [p, { time: Array.from(b.time), open: Array.from(b.open), high: Array.from(b.high), low: Array.from(b.low), close: Array.from(b.close) }]));
+  const res = await fetch("api/lab/job", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "benchmark", cfg }) });
+  const started = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(started.error || `Backend error (HTTP ${res.status})`);
+  activeJob = { id: started.id, cancelled: false }; $("cancel").hidden = false; $("cancel").disabled = false;
+  try {
+    for (;;) {
+      await new Promise(r => setTimeout(r, 400));
+      const r = await fetch("api/lab/job?id=" + started.id, { cache: "no-store" });
+      const s = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(s.error || "Lost the benchmark job.");
+      tick(s);
+      if (s.state === "done") return s.result;
+      if (s.state === "error") { console.error(s.trace || s.error); throw new Error(s.error + " (full traceback is in the backend console)"); }
+      if (s.state === "cancelled") throw new Error("Cancelled.");
+    }
+  } finally { activeJob = null; $("cancel").hidden = true; }
+}
 $("run").onclick = async () => {
   $("err").textContent = ""; $("out").innerHTML = "";
   lastBenchmarkConfig = null; lastBenchmarkSummary = null; $("save-benchmark").disabled = true; $("save-message").textContent = "";
-  const g = grids(); if (g.n > MAX) { $("err").textContent = `Too many scenarios (${g.n}). Limit is ${MAX}.`; return; }
+  const g = grids(), be = engine() === "backend", max = maxScenarios();
+  if (g.n > max) { $("err").textContent = `Too many scenarios (${g.n}). Limit is ${max}.`; return; }
   if (!g.n) { $("err").textContent = "Enter valid scenario values before running the benchmark."; return; }
   const useSample = $("src").value === "sample";
   if (!useSample && !Object.keys(LOADED).length) { $("err").textContent = "No real data is loaded. Sync Dukascopy, load local files, or choose synthetic sample."; return; }
+  if (be && window.Lab?.mode !== "backend") { $("err").textContent = "The Python backend is not running. Start it (start.bat / python py/server.py) or switch the engine to Browser."; return; }
   const ctx = { startDate: $("d0").value, endDate: $("d1").value, rates: RATES };
   const progress = $("progress"), bar = $("bar"), timer = $("timer"), button = $("run");
-  const started = performance.now(); let done = 0;
+  const started = performance.now(); let done = 0, workers = 0;
   progress.hidden = false; bar.value = 0; button.disabled = true; button.textContent = "Running benchmark…";
   $("empty").hidden = true;
   const pairCount = useSample ? $("pairs").value.split(",").filter(Boolean).length : Object.keys(LOADED).length;
-  $("results-summary").textContent = `${pairCount} pairs · ${g.n} scenario${g.n === 1 ? "" : "s"} · ${ctx.startDate} to ${ctx.endDate}`;
+  $("results-summary").textContent = `${pairCount} pairs · ${g.n} scenario${g.n === 1 ? "" : "s"} · ${ctx.startDate} to ${ctx.endDate} · ${be ? "Python backend" : "browser"}`;
   const updateProgress = () => {
     const elapsed = performance.now() - started;
     const remaining = done ? elapsed / done * (g.n - done) : null;
     bar.value = done / g.n * 100;
-    timer.textContent = `${done} / ${g.n} scenarios · elapsed ${duration(elapsed)} · ${remaining === null ? "estimating remaining time" : `about ${duration(remaining)} remaining`}`;
+    timer.textContent = `${done} / ${g.n} scenarios${workers ? ` · ${workers} process${workers === 1 ? "" : "es"}` : ""} · elapsed ${duration(elapsed)} · ${remaining === null ? "estimating remaining time" : `about ${duration(remaining)} remaining`}`;
   };
   updateProgress();
   const ticker = setInterval(updateProgress, 250);
   let worker;
   try {
-    worker = new Worker(new URL("./src/browser/benchmark-worker.js", import.meta.url), { type: "module" });
-    const all = await new Promise((resolve, reject) => {
-      worker.onmessage = ({ data }) => {
-        if (data.type === "progress") { done = data.completed; updateProgress(); }
-        else if (data.type === "complete") resolve(data.rows);
-        else if (data.type === "error") reject(new Error(data.message));
-      };
-      worker.onerror = event => reject(new Error(event.message || "Benchmark worker failed"));
-      worker.postMessage({ gen: g.gen, cost: g.cost, ctx, useSample, pairs: $("pairs").value, loaded: LOADED });
-    });
-    const averaged = average(all);
-    show(`Average of ${all.length} scenario${all.length === 1 ? "" : "s"}`, averaged);
+    let averaged, runs, result = null;
+    if (be) {
+      result = await runBackend(g, ctx, useSample, s => { done = s.done; workers = s.workers; updateProgress(); });
+      averaged = result.variants.map(v => ({ ...v, pf: v.pf == null ? Infinity : v.pf }));
+      runs = result.scenarios;
+    } else {
+      const gen = B.expandGrid(g.genAx), cost = B.expandGrid(g.costAx);
+      worker = new Worker(new URL("./src/browser/benchmark-worker.js", import.meta.url), { type: "module" });
+      const all = await new Promise((resolve, reject) => {
+        worker.onmessage = ({ data }) => {
+          if (data.type === "progress") { done = data.completed; updateProgress(); }
+          else if (data.type === "complete") resolve(data.rows);
+          else if (data.type === "error") reject(new Error(data.message));
+        };
+        worker.onerror = event => reject(new Error(event.message || "Benchmark worker failed"));
+        worker.postMessage({ gen, cost, ctx, useSample, pairs: $("pairs").value, loaded: LOADED });
+      });
+      averaged = average(all); runs = all.length;
+    }
+    show(`Average of ${runs} scenario${runs === 1 ? "" : "s"}${be ? " · Python backend" : ""}`, averaged);
+    const first = Object.fromEntries(Object.entries({ ...g.genAx, ...g.costAx }).map(([k, v]) => [k, v[0]]));
     lastBenchmarkConfig = {
+      engine: be ? "backend" : "browser",
       source: useSample ? "sample" : $("src").value,
-      pairs: useSample ? $("pairs").value.split(",").map(pair => pair.trim().toUpperCase()).filter(Boolean) : Object.keys(LOADED),
+      pairs: useSample ? $("pairs").value.split(",").map(pair => pair.trim().toUpperCase()).filter(Boolean) : (result?.pairs?.length ? result.pairs : Object.keys(LOADED)),
       startDate: ctx.startDate,
       endDate: ctx.endDate,
-      parameters: { ...g.gen[0], ...g.cost[0] },
-      scenarios: { generator: g.gen, costs: g.cost }
+      parameters: first,
+      scenarios: { generatorAxes: g.genAx, costAxes: g.costAx, count: g.n }
     };
     lastBenchmarkSummary = averaged.map(({ curve, ...row }) => row);
     $("save-benchmark").disabled = false;
     done = g.n; updateProgress();
     timer.textContent = `${g.n} / ${g.n} scenarios · completed in ${duration(performance.now() - started)}`;
-    $("results-summary").textContent = `Averaged across ${all.length} run${all.length === 1 ? "" : "s"} · ${ctx.startDate} to ${ctx.endDate}`;
+    $("results-summary").textContent = `Averaged across ${runs} run${runs === 1 ? "" : "s"} · ${ctx.startDate} to ${ctx.endDate} · ${be ? "Python backend" : "browser"}`;
   } catch (error) {
     $("err").textContent = error.message;
-    $("results-summary").textContent = "Benchmark did not complete.";
+    $("results-summary").textContent = error.message === "Cancelled." ? "Benchmark cancelled." : "Benchmark did not complete.";
     if (!$("out").children.length) $("empty").hidden = false;
     timer.textContent = `Stopped after ${done} of ${g.n} scenarios · elapsed ${duration(performance.now() - started)}`;
   } finally {
